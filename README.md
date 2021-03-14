@@ -12,7 +12,7 @@ Jepsen test for TiKV.
 
 4. Run the test on nodes:
 ```bash
-lein run test --ssh-private-key ~/.ssh/id_rsa
+lein run test --ssh-private-key ~/.ssh/id_rsa --version v4.0.0
 ```
 
 ## License
