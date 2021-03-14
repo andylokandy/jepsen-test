@@ -4,13 +4,15 @@ Jepsen test for TiKV.
 
 ## Usage
 
-1. Set up tester using `scripts/setup-tester.sh`.
+1. Install LXC using `scripts/install-lxc.h`.
 
-2. Set up nodes via LXC using `scripts/setup-nodes.sh`, `scripts/prepare-nodes.sh`.
+2. Set up tester using `scripts/setup-tester.sh`.
 
 3. Set up virtual network using `scripts/setup-network.sh`.
 
-4. Run the test on nodes:
+4. Set up nodes via LXC using `scripts/setup-nodes.sh`, `scripts/prepare-nodes.sh`.
+
+5. Run the test on nodes:
 ```bash
 lein run test --ssh-private-key ~/.ssh/id_rsa --version v4.0.0
 ```
