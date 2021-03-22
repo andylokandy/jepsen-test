@@ -263,6 +263,7 @@
 
              (start-wait-kv! test node)
              (jepsen/synchronize test)
+             (Thread/sleep 5000)
 
              (catch [:type :restart-loop-timed-out] e
                (throw+ {:type :jepsen.db/setup-failed})))))

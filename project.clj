@@ -5,5 +5,14 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :main jepsen.tikv
   :dependencies [[org.clojure/clojure "1.10.1"]
-                 [jepsen "0.2.3"]]
+                 [jepsen "0.2.3"]
+                 ;; -- PROTOC-GEN-CLOJURE --
+                 [protojure "1.5.11"]
+                 [protojure/google.protobuf "0.9.1"]
+                 [com.google.protobuf/protobuf-java "3.13.0"]
+                 ;; -- PROTOC-GEN-CLOJURE HTTP/2 Client Lib Dependencies --
+                 [org.eclipse.jetty.http2/http2-client "9.4.20.v20190813"]
+                 [org.eclipse.jetty/jetty-alpn-java-client "9.4.28.v20200408"]
+                 ;; -- Jetty Client Dep --
+                 [org.ow2.asm/asm "8.0.1"]]
   :repl-options {:init-ns jepsen.tikv})

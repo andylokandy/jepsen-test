@@ -1,0 +1,21 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+package tikv.raw;
+
+service Client {
+    rpc Get (GetRequest) returns (GetReply);
+    rpc Put (PutRequest) returns (google.protobuf.Empty);
+}
+
+message GetRequest {
+    string key = 1;
+}
+
+message GetReply {
+    string value = 1;
+}
+
+message PutRequest {
+    string key = 1;
+    string value = 2;
+}

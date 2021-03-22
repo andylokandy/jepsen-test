@@ -2,6 +2,15 @@
 
 Jepsen test for TiKV.
 
+## Build
+
+```bash
+# generate clojure client from protobuf
+make gen-proto-clojure-client
+# build rust-client-server which will be referenced by `./rpc-server`
+make build-rust-client-server
+```
+
 ## Usage
 
 1. Install LXC using `scripts/install-lxc.h`.
@@ -14,7 +23,7 @@ Jepsen test for TiKV.
 
 5. Run the test on nodes:
 ```bash
-lein run test --ssh-private-key ~/.ssh/id_rsa --version v4.0.0
+lein run test --ssh-private-key ~/.ssh/id_rsa --version v4.0.0 --workload register
 ```
 
 ## License
