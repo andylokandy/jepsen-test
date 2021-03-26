@@ -10,12 +10,8 @@
             [jepsen.checker.timeline :as timeline]
             [knossos.model :as model]
             [jepsen.tikv
-             [client :as c]]))
-
-(defn parse-long
-  "Parses a string to a Long. Passes through `nil`."
-  [s]
-  (when s (Long/parseLong s)))
+             [client :as c]
+             [util :as tu]]))
 
 (defrecord Client [conn]
   client/Client
@@ -30,7 +26,7 @@
        (case (:f op)
          :read  (let [value (-> conn
                                 (c/get k)
-                                parse-long)]
+                                tu/parse-long)]
                   (assoc op :type :ok :value (independent/tuple k value)))
          :write (do (c/put! conn k v)
                     (assoc op :type :ok)))
@@ -64,5 +60,5 @@
                (range)
                (fn [k]
                  (->> (gen/mix [r w])
-                      (gen/stagger 1/50)
-                      (gen/limit 100))))})
+                      (gen/stagger (/ (:rate opts)))
+                      (gen/limit (:ops-per-key opts)))))})

@@ -9,7 +9,8 @@
             [jepsen.os.centos :as centos]
             [jepsen.tikv
              [db :as db]
-             [register :as register]]))
+             [register :as register]
+             [util :as tu]]))
 
 (def workloads
   "A map of workload names to functions that construct workloads, given opts."
@@ -51,7 +52,15 @@
   [["-v" "--version VERSION" "The version of TiKV"]
    ["-w" "--workload NAME" "The workload to run"
     :parse-fn keyword
-    :validate [workloads (cli/one-of workloads)]]])
+    :validate [workloads (cli/one-of workloads)]]
+   ["-r" "--rate HZ" "Approximate number of requests per second, per thread."
+    :default  10
+    :parse-fn read-string
+    :validate [#(and (number? %) (pos? %)) "Must be a positive number"]]
+   [nil "--ops-per-key NUM" "Maximum number of operations on any given key."
+    :default  100
+    :parse-fn tu/parse-long
+    :validate [pos? "Must be a positive integer."]]])
 
 (defn -main
   "Handles command line arguments. Can either run a test, or a web server for
