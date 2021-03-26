@@ -38,7 +38,6 @@
                       {:perf     (checker/perf)
                        :workload (:checker workload)})
             :generator (->> (:generator workload)
-                            (gen/stagger 1)
                             (gen/nemesis
                              (cycle [(gen/sleep 5)
                                      {:type :info, :f :start}

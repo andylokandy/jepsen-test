@@ -5,7 +5,9 @@
             [jepsen
              [client :as client]
              [checker :as checker]
+             [independent :as independent]
              [generator :as gen]]
+            [jepsen.checker.timeline :as timeline]
             [knossos.model :as model]
             [jepsen.tikv
              [client :as c]]))
@@ -23,18 +25,19 @@
   (setup! [this test])
 
   (invoke! [_ test op]
-    (try+ (case (:f op)
-            :read  (let [value (-> conn
-                                   (c/get "foo")
-                                   parse-long)]
-                     (assoc op :type :ok :value value))
-            :write (let [value (:value op)]
-                     (do (c/put! conn "foo" value)
-                         (assoc op :type :ok))))
-          (catch [:status 5] e ; gRPC not found error
-            (assoc op :type :fail :error :not-found))
-          (catch [:status 10] e ; gRPC aborted error
-            (assoc op :type :fail :error :aborted))))
+    (let [[k v] (:value op)]
+      (try+
+       (case (:f op)
+         :read  (let [value (-> conn
+                                (c/get k)
+                                parse-long)]
+                  (assoc op :type :ok :value (independent/tuple k value)))
+         :write (do (c/put! conn k v)
+                    (assoc op :type :ok)))
+       (catch [:status 5] e ; gRPC not found error
+         (assoc op :type :fail :error :not-found))
+       (catch [:status 10] e ; gRPC aborted error
+         (assoc op :type :fail :error :aborted)))))
 
   (teardown! [this test])
 
@@ -50,7 +53,16 @@
   on one key."
   [opts]
   {:client (Client. nil)
-   :generator (gen/mix [r w])
-   :checker (checker/linearizable
-             {:model     (model/cas-register)
-              :algorithm :linear})})
+   :checker (independent/checker
+             (checker/compose
+              {:linear (checker/linearizable
+                        {:model     (model/cas-register)
+                         :algorithm :linear})
+               :timeline (timeline/html)}))
+   :generator (independent/concurrent-generator
+               10
+               (range)
+               (fn [k]
+                 (->> (gen/mix [r w])
+                      (gen/stagger 1/50)
+                      (gen/limit 100))))})
