@@ -11,6 +11,7 @@ tonic = "0.4"
 prost = "0.7"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tikv-client = { git = "https://github.com/tikv/client-rust.git" }
+tikv-client-common = { git = "https://github.com/tikv/client-rust.git" }
 fork = "0.1.18"
 clap = "2.33.3"
 

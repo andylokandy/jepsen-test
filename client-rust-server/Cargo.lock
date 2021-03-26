@@ -192,6 +192,7 @@ dependencies = [
  "fork",
  "prost",
  "tikv-client",
+ "tikv-client-common",
  "tokio",
  "tonic",
  "tonic-build",

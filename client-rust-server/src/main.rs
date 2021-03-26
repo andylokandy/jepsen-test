@@ -3,6 +3,7 @@ use std::str;
 
 use clap::{App, Arg};
 use tikv_client::RawClient;
+use tikv_client_common::Error;
 use tonic::{transport::Server, Request, Response, Status};
 
 use tikv_client_server::raw::client_server::{Client, ClientServer};
@@ -27,10 +28,24 @@ impl Client for RawClientProxy {
         let response = match self.client.get(request.into_inner().key).await {
             Ok(response) => response,
             Err(err) => {
-                return Err(Status::unknown(format!(
-                    "tikv client get() failed: {:?}",
-                    err
-                )));
+                match err {
+                    Error::Io(_)
+                    | Error::Grpc(_)
+                    | Error::UndeterminedError(_)
+                    | Error::MultipleErrors(_)
+                    | Error::InternalError { message: _ } => {
+                        return Err(Status::unknown(format!(
+                            "tikv client get() failed: {:?}",
+                            err
+                        )))
+                    }
+                    _ => {
+                        return Err(Status::aborted(format!(
+                            "tikv client get() aborted: {:?}",
+                            err
+                        )))
+                    }
+                };
             }
         };
         match response {
@@ -46,10 +61,24 @@ impl Client for RawClientProxy {
         let message = request.into_inner();
         match self.client.put(message.key, message.value).await {
             Ok(()) => Ok(Response::new(())),
-            Err(err) => Err(Status::unknown(format!(
-                "tikv client put() failed: {:?}",
-                err
-            ))),
+            Err(err) => match err {
+                Error::Io(_)
+                | Error::Grpc(_)
+                | Error::UndeterminedError(_)
+                | Error::MultipleErrors(_)
+                | Error::InternalError { message: _ } => {
+                    return Err(Status::unknown(format!(
+                        "tikv client put() failed: {:?}",
+                        err
+                    )));
+                }
+                _ => {
+                    return Err(Status::aborted(format!(
+                        "tikv client put() aborted: {:?}",
+                        err
+                    )))
+                }
+            },
         }
     }
 }

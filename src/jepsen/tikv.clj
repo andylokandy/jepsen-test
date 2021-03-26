@@ -2,7 +2,10 @@
   (:require [jepsen
              [cli :as cli]
              [tests :as tests]
+             [checker :as checker]
+             [nemesis :as nemesis]
              [generator :as gen]]
+            [knossos.model :as model]
             [jepsen.os.centos :as centos]
             [jepsen.tikv
              [db :as db]
@@ -30,10 +33,18 @@
             :db (db/tikv)
             :pure-generators true
             :client (:client workload)
+            :nemesis (nemesis/partition-random-halves)
+            :checker (checker/compose
+                      {:perf     (checker/perf)
+                       :workload (:checker workload)})
             :generator (->> (:generator workload)
                             (gen/stagger 1)
-                            (gen/nemesis nil)
-                            (gen/time-limit 15))}
+                            (gen/nemesis
+                             (cycle [(gen/sleep 5)
+                                     {:type :info, :f :start}
+                                     (gen/sleep 5)
+                                     {:type :info, :f :stop}]))
+                            (gen/time-limit (:time-limit opts)))}
            opts)))
 
 (def cli-opts

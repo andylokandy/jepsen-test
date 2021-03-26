@@ -3,8 +3,10 @@
   (:require [clojure.tools.logging :refer :all]
             [slingshot.slingshot :refer [try+]]
             [jepsen
-             [generator :as gen]
-             [client :as client]]
+             [client :as client]
+             [checker :as checker]
+             [generator :as gen]]
+            [knossos.model :as model]
             [jepsen.tikv
              [client :as c]]))
 
@@ -30,7 +32,9 @@
                      (do (c/put! conn "foo" value)
                          (assoc op :type :ok))))
           (catch [:status 5] e ; gRPC not found error
-            (assoc op :type :fail :error :not-found))))
+            (assoc op :type :fail :error :not-found))
+          (catch [:status 10] e ; gRPC aborted error
+            (assoc op :type :fail :error :aborted))))
 
   (teardown! [this test])
 
@@ -46,4 +50,7 @@
   on one key."
   [opts]
   {:client (Client. nil)
-   :generator (gen/mix [r w])})
+   :generator (gen/mix [r w])
+   :checker (checker/linearizable
+             {:model     (model/cas-register)
+              :algorithm :linear})})
