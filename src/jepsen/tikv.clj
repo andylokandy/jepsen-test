@@ -10,11 +10,13 @@
             [jepsen.tikv
              [db :as db]
              [register :as register]
+             [set :as set]
              [util :as tu]]))
 
 (def workloads
   "A map of workload names to functions that construct workloads, given opts."
-  {:register       register/workload})
+  {:register       register/workload
+   :set            set/workload})
 
 (def all-workloads
   "A collection of workloads we run by default."

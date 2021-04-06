@@ -1,87 +1,15 @@
 use std::net::TcpListener;
-use std::str;
 
 use clap::{App, Arg};
-use tikv_client::RawClient;
-use tikv_client_common::Error;
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::transport::Server;
 
-use tikv_client_server::raw::client_server::{Client, ClientServer};
-use tikv_client_server::raw::{GetReply, GetRequest, PutRequest};
+use tikv_client::{RawClient, TransactionClient};
 
-mod tikv_client_server;
+use tikv_client_server::raw::client_server::ClientServer as RawClientServer;
+use tikv_client_server::txn::client_server::ClientServer as TxnClientServer;
 
-pub struct RawClientProxy {
-    client: RawClient,
-}
-
-impl RawClientProxy {
-    fn new(client: RawClient) -> RawClientProxy {
-        RawClientProxy { client }
-    }
-}
-
-#[tonic::async_trait]
-impl Client for RawClientProxy {
-    async fn get(&self, request: Request<GetRequest>) -> Result<Response<GetReply>, Status> {
-        println!("Got a request: {:?}", request);
-        let response = match self.client.get(request.into_inner().key).await {
-            Ok(response) => response,
-            Err(err) => {
-                match err {
-                    Error::Io(_)
-                    | Error::Grpc(_)
-                    | Error::UndeterminedError(_)
-                    | Error::MultipleErrors(_)
-                    | Error::InternalError { message: _ } => {
-                        return Err(Status::unknown(format!(
-                            "tikv client get() failed: {:?}",
-                            err
-                        )))
-                    }
-                    _ => {
-                        return Err(Status::aborted(format!(
-                            "tikv client get() aborted: {:?}",
-                            err
-                        )))
-                    }
-                };
-            }
-        };
-        match response {
-            Some(value) => Ok(Response::new(GetReply {
-                value: str::from_utf8(value.as_ref()).unwrap().into(),
-            })),
-            None => Err(Status::not_found("key is not found")),
-        }
-    }
-
-    async fn put(&self, request: Request<PutRequest>) -> Result<Response<()>, Status> {
-        println!("Got a request: {:?}", request);
-        let message = request.into_inner();
-        match self.client.put(message.key, message.value).await {
-            Ok(()) => Ok(Response::new(())),
-            Err(err) => match err {
-                Error::Io(_)
-                | Error::Grpc(_)
-                | Error::UndeterminedError(_)
-                | Error::MultipleErrors(_)
-                | Error::InternalError { message: _ } => {
-                    return Err(Status::unknown(format!(
-                        "tikv client put() failed: {:?}",
-                        err
-                    )));
-                }
-                _ => {
-                    return Err(Status::aborted(format!(
-                        "tikv client put() aborted: {:?}",
-                        err
-                    )))
-                }
-            },
-        }
-    }
-}
+use raw::ClientProxy as RawClientProxy;
+use txn::ClientProxy as TxnClientProxy;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -105,17 +33,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_matches();
 
     let node = matches.value_of("node").unwrap();
-    let _type = matches.value_of("type").unwrap();
+    let typ = matches.value_of("type").unwrap();
 
-    let client = RawClient::new(vec![format!("{}:2379", node)]).await?;
-    let proxy = RawClientProxy::new(client);
-    let server = ClientServer::new(proxy);
-
+    let pd_endpoints = vec![format!("{}:2379", node)];
     let port = get_available_port().unwrap();
     let addr = format!("127.0.0.1:{}", port).parse()?;
     println!("{}", addr);
-
-    Server::builder().add_service(server).serve(addr).await?;
+    match typ {
+        "raw" => {
+            let client = RawClient::new(pd_endpoints).await?;
+            let proxy = RawClientProxy::new(client);
+            let server = RawClientServer::new(proxy);
+            Server::builder().add_service(server).serve(addr).await?;
+        }
+        "txn" => {
+            let client = TransactionClient::new(pd_endpoints).await?;
+            let proxy = TxnClientProxy::new(client);
+            let server = TxnClientServer::new(proxy);
+            Server::builder().add_service(server).serve(addr).await?;
+        }
+        _ => {
+            eprintln!("type is not one of \"raw\" and \"txn\"");
+            std::process::exit(1);
+        }
+    };
 
     Ok(())
 }
@@ -130,3 +71,8 @@ fn port_is_available(port: u16) -> bool {
         Err(_) => false,
     }
 }
+
+mod tikv_client_server;
+
+mod raw;
+mod txn;

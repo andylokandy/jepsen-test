@@ -1,0 +1,46 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+package tikv.txn;
+
+service Client {
+    rpc BeginTxn (BeginTxnRequest) returns (BeginTxnReply);
+    rpc Get (GetRequest) returns (GetReply);
+    rpc Put (PutRequest) returns (google.protobuf.Empty);
+    rpc Commit (CommitRequest) returns (google.protobuf.Empty);
+    rpc Rollback (RollbackRequest) returns (google.protobuf.Empty);
+}
+
+message BeginTxnRequest {
+    enum Type {
+        OPTIMISTIC = 0;
+        PESSIMISTIC = 1;
+    }
+    Type type = 1;
+}
+
+message BeginTxnReply {
+    fixed32 txn_id = 1;
+}
+
+message GetRequest {
+    fixed32 txn_id = 1;
+    string key = 2;
+}
+
+message GetReply {
+    string value = 1;
+}
+
+message PutRequest {
+    fixed32 txn_id = 1;
+    string key = 2;
+    string value = 3;
+}
+
+message CommitRequest {
+    fixed32 txn_id = 1;
+}
+
+message RollbackRequest {
+    fixed32 txn_id = 1;
+}

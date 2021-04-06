@@ -13,15 +13,17 @@
 
 (defn open
   "Create a TiKV client."
-  [node]
-  (let [process (popen/popen ["./rpc-server" "--node" node "--type" "raw"] :redirect false :dir nil :env {})
-        uri     (->> process
-                     popen/stdout
-                     line-seq
-                     (take 1)
-                     first)]
-    {:conn @(grpc.http2/connect {:uri (str "http://" uri)})
-     :process process}))
+  ([node]
+   (open node {}))
+  ([node opts]
+   (let [process (popen/popen ["./rpc-server" "--node" node "--type" (:type opts "raw")] :redirect false :dir nil :env {})
+         uri     (->> process
+                      popen/stdout
+                      line-seq
+                      (take 1)
+                      first)]
+     {:conn @(grpc.http2/connect {:uri (str "http://" uri)})
+      :process process})))
 
 (defn get
   "Get a value by key."

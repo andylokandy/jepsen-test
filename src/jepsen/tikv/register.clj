@@ -59,6 +59,6 @@
                10
                (range)
                (fn [k]
-                 (->> (gen/mix [r w])
+                 (->> (gen/reserve 5 r (gen/mix [w])) ; change to (gen/mix [w cas]) when CaS operation is implemented
                       (gen/stagger (/ (:rate opts)))
                       (gen/limit (:ops-per-key opts)))))})
