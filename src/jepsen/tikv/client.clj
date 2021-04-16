@@ -22,8 +22,9 @@
                       line-seq
                       (take 1)
                       first)]
-     {:conn @(grpc.http2/connect {:uri (str "http://" uri)})
-      :process process})))
+     (do (info "rpc server uri:" uri)
+         {:conn @(grpc.http2/connect {:uri (str "http://" uri)})
+          :process process}))))
 
 (defn get
   "Get a value by key."

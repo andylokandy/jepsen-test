@@ -23,6 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .required(true)
                 .takes_value(true),
         )
+        // .arg(
+        //     Arg::with_name("port")
+        //         .long("port")
+        //         .required(true)
+        //         .takes_value(true),
+        // )
         .arg(
             Arg::with_name("type")
                 .long("type")
@@ -34,22 +40,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let node = matches.value_of("node").unwrap();
     let typ = matches.value_of("type").unwrap();
+    let port = get_available_port().unwrap();
 
     let pd_endpoints = vec![format!("{}:2379", node)];
-    let port = get_available_port().unwrap();
-    let addr = format!("127.0.0.1:{}", port).parse()?;
-    println!("{}", addr);
     match typ {
         "raw" => {
             let client = RawClient::new(pd_endpoints).await?;
             let proxy = RawClientProxy::new(client);
             let server = RawClientServer::new(proxy);
+            let addr = format!("127.0.0.1:{}", port).parse()?;
+            println!("{}", addr);
             Server::builder().add_service(server).serve(addr).await?;
         }
         "txn" => {
             let client = TransactionClient::new(pd_endpoints).await?;
             let proxy = TxnClientProxy::new(client);
             let server = TxnClientServer::new(proxy);
+            let addr = format!("127.0.0.1:{}", port).parse()?;
+            println!("{}", addr);
             Server::builder().add_service(server).serve(addr).await?;
         }
         _ => {
