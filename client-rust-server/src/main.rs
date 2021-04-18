@@ -23,12 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .required(true)
                 .takes_value(true),
         )
-        // .arg(
-        //     Arg::with_name("port")
-        //         .long("port")
-        //         .required(true)
-        //         .takes_value(true),
-        // )
+        .arg(
+            Arg::with_name("port")
+                .long("port")
+                .required(true)
+                .takes_value(true),
+        )
         .arg(
             Arg::with_name("type")
                 .long("type")
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let node = matches.value_of("node").unwrap();
     let typ = matches.value_of("type").unwrap();
-    let port = get_available_port().unwrap();
+    let port = matches.value_of("port").unwrap();
 
     let pd_endpoints = vec![format!("{}:2379", node)];
     match typ {

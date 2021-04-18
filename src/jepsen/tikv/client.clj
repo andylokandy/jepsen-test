@@ -11,17 +11,20 @@
             [protojure.grpc.client.providers.http2 :as grpc.http2]
             [protojure.grpc.client.api :as grpc.api]))
 
+(def global-counter (atom 8000))
+
+(defn next-port
+  []
+  (swap! global-counter inc))
+
 (defn open
   "Create a TiKV client."
   ([node]
    (open node {}))
   ([node opts]
-   (let [process (popen/popen ["./rpc-server" "--node" node "--type" (:type opts "raw")] :redirect false :dir nil :env {})
-         uri     (->> process
-                      popen/stdout
-                      line-seq
-                      (take 1)
-                      first)]
+   (let [port    (str (next-port))
+         process (popen/popen ["./rpc-server" "--node" node "--port" port "--type" (:type opts "raw")] :redirect false :dir nil :env {})
+         uri     (str "127.0.0.1:" port)]
      (do (info "rpc server uri:" uri)
          {:conn @(grpc.http2/connect {:uri (str "http://" uri)})
           :process process}))))
