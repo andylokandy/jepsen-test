@@ -6,6 +6,7 @@
     (put! client \"1\" \"one\")
     (close! client)"
   (:require [clojure.tools.logging :refer :all]
+            [clojure.core.async :as async]
             [popen]
             [tikv.raw.Client.client :as rawkv]
             [protojure.grpc.client.providers.http2 :as grpc.http2]
@@ -17,12 +18,13 @@
    (open node {}))
   ([node opts]
    (let [process (popen/popen ["./rpc-server" "--node" node "--type" (:type opts "raw")] :redirect false :dir nil :env {})
-         uri     (->> process
-                      popen/stdout
-                      line-seq
+         output  (line-seq (popen/stdout process))
+         uri     (->> output
                       (take 1)
                       first)]
      (do (info "rpc server uri:" uri)
+         (async/go (doseq [line output]
+                     (info "rpc server log:" line)))
          {:conn @(grpc.http2/connect {:uri (str "http://" uri)})
           :process process}))))
 
