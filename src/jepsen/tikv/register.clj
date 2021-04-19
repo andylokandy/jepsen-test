@@ -56,9 +56,9 @@
                          :algorithm :linear})
                :timeline (timeline/html)}))
    :generator (independent/concurrent-generator
-               10
+               1
                (range)
                (fn [k]
-                 (->> (gen/reserve 5 r (gen/mix [w])) ; change to (gen/mix [w cas]) when CaS operation is implemented
+                 (->> (gen/mix [r w]) ; change to (gen/mix [w cas]) when CaS operation is implemented
                       (gen/stagger (/ (:rate opts)))
                       (gen/limit (:ops-per-key opts)))))})

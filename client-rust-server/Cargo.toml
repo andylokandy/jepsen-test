@@ -14,6 +14,8 @@ tikv-client = { git = "https://github.com/tikv/client-rust.git" }
 tikv-client-common = { git = "https://github.com/tikv/client-rust.git" }
 fork = "0.1.18"
 clap = "2.33.3"
+log = "0.4"
+simple-logging = "2"
 
 [build-dependencies]
 tonic-build = "0.4"

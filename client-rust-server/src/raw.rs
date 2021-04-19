@@ -1,5 +1,6 @@
 use super::tikv_client_server::raw::client_server::Client;
 use super::tikv_client_server::raw::{GetReply, GetRequest, PutRequest};
+use log::info;
 use std::str;
 use tikv_client::RawClient;
 use tikv_client_common::Error;
@@ -18,7 +19,7 @@ impl ClientProxy {
 #[tonic::async_trait]
 impl Client for ClientProxy {
     async fn get(&self, request: Request<GetRequest>) -> Result<Response<GetReply>, Status> {
-        println!("Got a request: {:?}", request);
+        info!("Got a request: {:?}", request);
         let response = match self.client.get(request.into_inner().key).await {
             Ok(response) => response,
             Err(err) => {
@@ -51,7 +52,7 @@ impl Client for ClientProxy {
     }
 
     async fn put(&self, request: Request<PutRequest>) -> Result<Response<()>, Status> {
-        println!("Got a request: {:?}", request);
+        info!("Got a request: {:?}", request);
         let message = request.into_inner();
         match self.client.put(message.key, message.value).await {
             Ok(()) => Ok(Response::new(())),

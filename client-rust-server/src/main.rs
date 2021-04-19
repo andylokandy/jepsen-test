@@ -1,3 +1,5 @@
+use log::{error, info, LevelFilter};
+use simple_logging;
 use std::net::TcpListener;
 
 use clap::{App, Arg};
@@ -13,6 +15,9 @@ use txn::ClientProxy as TxnClientProxy;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let pid = std::process::id();
+    simple_logging::log_to_file(format!("log/rpc_server.{}.log", pid), LevelFilter::Info)?;
+
     let matches = App::new("client-rust server")
         .version("0.1")
         .author("Ziyi Yan <ziyi.yan@foxmail.com>")
@@ -61,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Server::builder().add_service(server).serve(addr).await?;
         }
         _ => {
-            eprintln!("type is not one of \"raw\" and \"txn\"");
+            error!("type is not one of \"raw\" and \"txn\"");
             std::process::exit(1);
         }
     };
