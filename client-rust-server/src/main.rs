@@ -1,6 +1,5 @@
 use log::{error, info, LevelFilter};
 use simple_logging;
-use std::net::TcpListener;
 
 use clap::{App, Arg};
 use tonic::transport::Server;
@@ -28,12 +27,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .required(true)
                 .takes_value(true),
         )
-        // .arg(
-        //     Arg::with_name("port")
-        //         .long("port")
-        //         .required(true)
-        //         .takes_value(true),
-        // )
+        .arg(
+            Arg::with_name("port")
+                .long("port")
+                .required(true)
+                .takes_value(true),
+        )
         .arg(
             Arg::with_name("type")
                 .long("type")
@@ -45,7 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let node = matches.value_of("node").unwrap();
     let typ = matches.value_of("type").unwrap();
-    let port = get_available_port().unwrap();
+    let port = matches.value_of("port").unwrap();
+    let addr = format!("127.0.0.1:{}", port).parse()?;
+    info!("{}", addr);
 
     let pd_endpoints = vec![format!("{}:2379", node)];
     match typ {
@@ -53,16 +54,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let client = RawClient::new(pd_endpoints).await?;
             let proxy = RawClientProxy::new(client);
             let server = RawClientServer::new(proxy);
-            let addr = format!("127.0.0.1:{}", port).parse()?;
-            println!("{}", addr);
             Server::builder().add_service(server).serve(addr).await?;
         }
         "txn" => {
             let client = TransactionClient::new(pd_endpoints).await?;
             let proxy = TxnClientProxy::new(client);
             let server = TxnClientServer::new(proxy);
-            let addr = format!("127.0.0.1:{}", port).parse()?;
-            println!("{}", addr);
             Server::builder().add_service(server).serve(addr).await?;
         }
         _ => {
@@ -72,17 +69,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     Ok(())
-}
-
-fn get_available_port() -> Option<u16> {
-    (8000..9000).find(|port| port_is_available(*port))
-}
-
-fn port_is_available(port: u16) -> bool {
-    match TcpListener::bind(("127.0.0.1", port)) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
 }
 
 mod tikv_client_server;

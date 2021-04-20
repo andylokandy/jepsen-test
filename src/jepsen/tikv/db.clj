@@ -2,6 +2,9 @@
   (:require [clojure.tools.logging :refer :all]
             [clojure.string :as str]
             [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
+            [popen]
+            [jepsen.tikv.util :as tu]
             [jepsen
              [core :as jepsen]
              [control :as c]
@@ -265,6 +268,14 @@
              (jepsen/synchronize test)
              (Thread/sleep 5000)
 
+             (popen/popen ["./rpc-server"
+                           "--node" node
+                           "--port" (str (+ 8000 (tu/num-suffix node)))
+                           "--type" "raw"]
+                          :redirect false
+                          :dir nil
+                          :env {})
+
              (catch [:type :restart-loop-timed-out] e
                (throw+ {:type :jepsen.db/setup-failed})))))
 
@@ -272,6 +283,7 @@
       (c/su
        (info node "tearing down TiKV")
        (stop! test node)
+       (shell/sh "pkill" "rpc-server")
        ; Delete everything but bin/
        (try+ (->> (cu/ls tidb-dir)
                   (remove #{"bin"})

@@ -8,6 +8,7 @@
   (:require [clojure.tools.logging :refer :all]
             [popen]
             [tikv.raw.Client.client :as rawkv]
+            [jepsen.tikv.util :as tu]
             [protojure.grpc.client.providers.http2 :as grpc.http2]
             [protojure.grpc.client.api :as grpc.api]))
 
@@ -16,15 +17,9 @@
   ([node]
    (open node {}))
   ([node opts]
-   (let [process (popen/popen ["./rpc-server" "--node" node "--type" (:type opts "raw")] :redirect false :dir nil :env {})
-         uri     (->> process
-                      popen/stdout
-                      line-seq
-                      (take 1)
-                      first)]
+   (let [uri     (str "127.0.0.1:" (+ 8000 (tu/num-suffix node)))]
      (do (info "rpc server uri:" uri)
-         {:conn @(grpc.http2/connect {:uri (str "http://" uri)})
-          :process process}))))
+         {:conn @(grpc.http2/connect {:uri (str "http://" uri)})}))))
 
 (defn get
   "Get a value by key."
@@ -43,5 +38,4 @@
 (defn close!
   "Close a TiKV client."
   [conn]
-  (do (grpc.api/disconnect (:conn conn))
-      (popen/kill (:process conn))))
+  (grpc.api/disconnect (:conn conn)))
