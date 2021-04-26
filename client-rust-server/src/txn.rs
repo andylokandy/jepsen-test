@@ -35,7 +35,8 @@ impl Client for ClientProxy {
         &self,
         request: tonic::Request<BeginTxnRequest>,
     ) -> Result<tonic::Response<BeginTxnReply>, tonic::Status> {
-        let res = match request.into_inner().r#type() {
+        let req = request.into_inner();
+        let res = match req.r#type() {
             Type::Optimistic => self.client.begin_optimistic().await,
             Type::Pessimistic => self.client.begin_pessimistic().await,
         };
@@ -49,7 +50,6 @@ impl Client for ClientProxy {
             }
         };
         let txn_id = self.next_txn_id.load(Ordering::Relaxed);
-        info!("txn: {} begin_txn()", txn_id);
         self.txns.lock().await.insert(txn_id, txn);
         let res = self.next_txn_id.compare_exchange(
             txn_id,
@@ -57,13 +57,15 @@ impl Client for ClientProxy {
             Ordering::Relaxed,
             Ordering::Relaxed,
         );
-        match res {
+        let res = match res {
             Ok(_) => Ok(Response::new(BeginTxnReply { txn_id })),
             Err(err) => Err(Status::unknown(format!(
                 "increment next_txn_id failed: {:?}",
                 err
             ))),
-        }
+        };
+        info!("txn: {} type: {:?} begin_txn()", txn_id, req.r#type());
+        res
     }
 
     async fn get(
@@ -71,15 +73,16 @@ impl Client for ClientProxy {
         request: tonic::Request<GetRequest>,
     ) -> Result<tonic::Response<GetReply>, tonic::Status> {
         let GetRequest { key, txn_id } = request.into_inner();
-        info!("txn: {} get({})", txn_id, key);
         let mut txns = self.txns.lock().await;
         let txn = txns.get_mut(&txn_id);
-        match txn.unwrap().get(key).await.unwrap() {
+        let res = match txn.unwrap().get(key.clone()).await.unwrap() {
             Some(value) => Ok(Response::new(GetReply {
                 value: str::from_utf8(value.as_ref()).unwrap().into(),
             })),
             None => Err(Status::not_found("key is not found")),
-        }
+        };
+        info!("txn: {} get({})", txn_id, key);
+        res
     }
 
     async fn put(
@@ -87,16 +90,17 @@ impl Client for ClientProxy {
         request: tonic::Request<PutRequest>,
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let PutRequest { key, value, txn_id } = request.into_inner();
-        info!("txn: {} put({}, {})", txn_id, key, value);
         let mut txns = self.txns.lock().await;
         let txn = txns.get_mut(&txn_id);
-        match txn.unwrap().put(key, value).await {
+        let res = match txn.unwrap().put(key.clone(), value.clone()).await {
             Ok(()) => Ok(Response::new(())),
             Err(err) => Err(Status::unknown(format!(
                 "tikv transaction put() failed: {:?}",
                 err
             ))),
-        }
+        };
+        info!("txn: {} put({}, {})", txn_id, key, value);
+        res
     }
 
     async fn commit(
@@ -104,16 +108,17 @@ impl Client for ClientProxy {
         request: tonic::Request<CommitRequest>,
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let CommitRequest { txn_id } = request.into_inner();
-        info!("txn: {} commit()", txn_id);
         let mut txns = self.txns.lock().await;
         let txn = txns.get_mut(&txn_id).unwrap();
-        match txn.commit().await {
+        let res = match txn.commit().await {
             Ok(_) => Ok(Response::new(())),
             Err(err) => Err(Status::unknown(format!(
                 "tikv transaction commit failed: {:?}",
                 err
             ))),
-        }
+        };
+        info!("txn: {} commit()", txn_id);
+        res
     }
 
     async fn rollback(
@@ -121,15 +126,16 @@ impl Client for ClientProxy {
         request: tonic::Request<RollbackRequest>,
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let RollbackRequest { txn_id } = request.into_inner();
-        info!("txn: {} rollback()", txn_id);
         let mut txns = self.txns.lock().await;
         let txn = txns.get_mut(&txn_id).unwrap();
-        match txn.rollback().await {
+        let res = match txn.rollback().await {
             Ok(_) => Ok(Response::new(())),
             Err(err) => Err(Status::unknown(format!(
                 "tikv transaction rollback failed: {:?}",
                 err
             ))),
-        }
+        };
+        info!("txn: {} rollback()", txn_id);
+        res
     }
 }

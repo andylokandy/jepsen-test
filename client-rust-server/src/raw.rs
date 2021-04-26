@@ -24,11 +24,8 @@ impl Client for ClientProxy {
             Ok(response) => response,
             Err(err) => {
                 match err {
-                    Error::Io(_)
-                    | Error::Grpc(_)
-                    | Error::UndeterminedError(_)
-                    | Error::MultipleErrors(_)
-                    | Error::InternalError { message: _ } => {
+                    // TODO(ziyi) clarify whether each error is determined or not.
+                    Error::UndeterminedError(_) | Error::Grpc(_) => {
                         return Err(Status::unknown(format!(
                             "tikv client get() failed: {:?}",
                             err
@@ -57,11 +54,7 @@ impl Client for ClientProxy {
         match self.client.put(message.key, message.value).await {
             Ok(()) => Ok(Response::new(())),
             Err(err) => match err {
-                Error::Io(_)
-                | Error::Grpc(_)
-                | Error::UndeterminedError(_)
-                | Error::MultipleErrors(_)
-                | Error::InternalError { message: _ } => {
+                Error::UndeterminedError(_) => {
                     return Err(Status::unknown(format!(
                         "tikv client put() failed: {:?}",
                         err
