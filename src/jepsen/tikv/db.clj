@@ -248,6 +248,10 @@
   (stop-kv! test node)
   (stop-pd! test node))
 
+(def client-types
+  {:register "raw"
+   :set      "txn"})
+
 (defn tikv
   "A TiKV store."
   []
@@ -271,7 +275,7 @@
              (popen/popen ["./rpc-server"
                            "--node" node
                            "--port" (str (+ 8000 (tu/num-suffix node)))
-                           "--type" "raw"]
+                           "--type" (client-types (:workload test))]
                           :redirect false
                           :dir nil
                           :env {})

@@ -1,3 +1,4 @@
+use log::info;
 use std::collections::BTreeMap;
 use std::str;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -48,6 +49,7 @@ impl Client for ClientProxy {
             }
         };
         let txn_id = self.next_txn_id.load(Ordering::Relaxed);
+        info!("txn: {} begin_txn()", txn_id);
         self.txns.lock().await.insert(txn_id, txn);
         let res = self.next_txn_id.compare_exchange(
             txn_id,
@@ -69,8 +71,9 @@ impl Client for ClientProxy {
         request: tonic::Request<GetRequest>,
     ) -> Result<tonic::Response<GetReply>, tonic::Status> {
         let GetRequest { key, txn_id } = request.into_inner();
-        let txns = self.txns.lock().await;
-        let txn = txns.get(&txn_id);
+        info!("txn: {} get({})", txn_id, key);
+        let mut txns = self.txns.lock().await;
+        let txn = txns.get_mut(&txn_id);
         match txn.unwrap().get(key).await.unwrap() {
             Some(value) => Ok(Response::new(GetReply {
                 value: str::from_utf8(value.as_ref()).unwrap().into(),
@@ -84,6 +87,7 @@ impl Client for ClientProxy {
         request: tonic::Request<PutRequest>,
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let PutRequest { key, value, txn_id } = request.into_inner();
+        info!("txn: {} put({}, {})", txn_id, key, value);
         let mut txns = self.txns.lock().await;
         let txn = txns.get_mut(&txn_id);
         match txn.unwrap().put(key, value).await {
@@ -100,6 +104,7 @@ impl Client for ClientProxy {
         request: tonic::Request<CommitRequest>,
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let CommitRequest { txn_id } = request.into_inner();
+        info!("txn: {} commit()", txn_id);
         let mut txns = self.txns.lock().await;
         let txn = txns.get_mut(&txn_id).unwrap();
         match txn.commit().await {
@@ -116,6 +121,7 @@ impl Client for ClientProxy {
         request: tonic::Request<RollbackRequest>,
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let RollbackRequest { txn_id } = request.into_inner();
+        info!("txn: {} rollback()", txn_id);
         let mut txns = self.txns.lock().await;
         let txn = txns.get_mut(&txn_id).unwrap();
         match txn.rollback().await {

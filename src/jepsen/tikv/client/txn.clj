@@ -8,14 +8,16 @@
 (defmacro with-txn
   [conn & body]
   `(binding [*txn-id* (begin-txn ~conn)]
-     (try ~@body
-          (commit! ~conn)
+     (try (let [ret# (do ~@body)]
+            (do (commit! ~conn)
+                ret#))
           (catch Exception e#
-            (rollback! ~conn)))))
+            (do (rollback! ~conn)
+                (throw e#))))))
 
 (defn begin-txn
   [conn]
-  (:txn-id @(txnkv/BeginTxn (:conn conn) {}))) ; TODO(ziyi) hard-coded 0, which means using begin_optimistic
+  (:txn-id @(txnkv/BeginTxn (:conn conn) {:type 0}))) ; TODO(ziyi) hard-coded 0, which means using begin_optimistic
 
 (defn commit!
   [conn]
@@ -27,8 +29,11 @@
 
 (defn get
   [conn key]
-  (:value @(txnkv/Get (:conn conn) {:txn-id *txn-id* :key key})))
+  (let [key (str key)]
+    (:value @(txnkv/Get (:conn conn) {:txn-id *txn-id* :key key}))))
 
 (defn put!
   [conn key value]
-  @(txnkv/Put (:conn conn) {:txn-id *txn-id* :key key :value value}))
+  (let [key   (str key)
+        value (str value)]
+    @(txnkv/Put (:conn conn) {:txn-id *txn-id* :key key :value value})))

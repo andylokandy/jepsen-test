@@ -14,21 +14,24 @@
 
   (setup! [this test]
     (t/with-txn conn
-      (t/put! k "")))
+      (t/put! conn k "#{}")))
 
   (invoke! [_ test op]
-    (t/with-txn
-      (case (:f op)
-        :read (assoc op
-                     :type :ok,
-                     :value (read-string
-                             (t/get conn k)))
+    (try
+      (t/with-txn conn
+        (case (:f op)
+          :read (assoc op
+                       :type :ok,
+                       :value (read-string
+                               (t/get conn k)))
 
-        :add (do (t/put! conn k (-> (t/get conn k)
-                                    read-string
-                                    (conj (:value op))
-                                    pr-str))
-                 (assoc op :type :ok)))))
+          :add (do (t/put! conn k (-> (t/get conn k)
+                                      read-string
+                                      (conj (:value op))
+                                      pr-str))
+                   (assoc op :type :ok))))
+      (catch Exception e
+        (assoc op :type :fail :error :aborted :ex e))))
 
   (teardown! [_ test])
 
