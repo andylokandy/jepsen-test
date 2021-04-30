@@ -10,6 +10,7 @@ use super::tikv_client_server::txn::{
     RollbackRequest,
 };
 use tikv_client::{Transaction, TransactionClient};
+use tikv_client_common::Error;
 use tokio::sync::Mutex;
 use tonic::{Response, Status};
 
@@ -42,24 +43,31 @@ impl Client for ClientProxy {
         };
         let txn = match res {
             Ok(txn) => txn,
-            Err(err) => {
-                return Err(Status::unknown(format!(
-                    "begin transaction failed: {:?}",
-                    err
-                )))
-            }
+            Err(err) => match err {
+                Error::UndeterminedError(_) | Error::Grpc(_) => {
+                    return Err(Status::unknown(format!(
+                        "begin transaction failed: {:?}",
+                        err
+                    )))
+                }
+                _ => {
+                    return Err(Status::aborted(format!(
+                        "begin transaction aborted: {:?}",
+                        err
+                    )))
+                }
+            },
         };
         let txn_id = self.next_txn_id.load(Ordering::Relaxed);
         self.txns.lock().await.insert(txn_id, txn);
-        let res = self.next_txn_id.compare_exchange(
+        let res = match self.next_txn_id.compare_exchange(
             txn_id,
             txn_id + 1,
             Ordering::Relaxed,
             Ordering::Relaxed,
-        );
-        let res = match res {
+        ) {
             Ok(_) => Ok(Response::new(BeginTxnReply { txn_id })),
-            Err(err) => Err(Status::unknown(format!(
+            Err(err) => Err(Status::aborted(format!(
                 "increment next_txn_id failed: {:?}",
                 err
             ))),
@@ -74,8 +82,25 @@ impl Client for ClientProxy {
     ) -> Result<tonic::Response<GetReply>, tonic::Status> {
         let GetRequest { key, txn_id } = request.into_inner();
         let mut txns = self.txns.lock().await;
-        let txn = txns.get_mut(&txn_id);
-        let res = match txn.unwrap().get(key.clone()).await.unwrap() {
+        let txn = txns.get_mut(&txn_id).unwrap();
+        let val = match txn.get(key.clone()).await {
+            Ok(val) => val,
+            Err(err) => match err {
+                Error::UndeterminedError(_) | Error::Grpc(_) => {
+                    return Err(Status::unknown(format!(
+                        "tikv transaction get failed: {:?}",
+                        err
+                    )))
+                }
+                _ => {
+                    return Err(Status::aborted(format!(
+                        "tikv transaction get aborted: {:?}",
+                        err
+                    )))
+                }
+            },
+        };
+        let res = match val {
             Some(value) => Ok(Response::new(GetReply {
                 value: str::from_utf8(value.as_ref()).unwrap().into(),
             })),
@@ -91,13 +116,19 @@ impl Client for ClientProxy {
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let PutRequest { key, value, txn_id } = request.into_inner();
         let mut txns = self.txns.lock().await;
-        let txn = txns.get_mut(&txn_id);
-        let res = match txn.unwrap().put(key.clone(), value.clone()).await {
+        let txn = txns.get_mut(&txn_id).unwrap();
+        let res = match txn.put(key.clone(), value.clone()).await {
             Ok(()) => Ok(Response::new(())),
-            Err(err) => Err(Status::unknown(format!(
-                "tikv transaction put() failed: {:?}",
-                err
-            ))),
+            Err(err) => match err {
+                Error::UndeterminedError(_) | Error::Grpc(_) => Err(Status::unknown(format!(
+                    "tikv transaction put() failed: {:?}",
+                    err
+                ))),
+                _ => Err(Status::aborted(format!(
+                    "tikv transaction put() aborted: {:?}",
+                    err
+                ))),
+            },
         };
         info!("txn: {} put({}, {})", txn_id, key, value);
         res
@@ -112,10 +143,16 @@ impl Client for ClientProxy {
         let txn = txns.get_mut(&txn_id).unwrap();
         let res = match txn.commit().await {
             Ok(_) => Ok(Response::new(())),
-            Err(err) => Err(Status::unknown(format!(
-                "tikv transaction commit failed: {:?}",
-                err
-            ))),
+            Err(err) => match err {
+                Error::UndeterminedError(_) | Error::Grpc(_) => Err(Status::unknown(format!(
+                    "tikv transaction commit() failed: {:?}",
+                    err
+                ))),
+                _ => Err(Status::aborted(format!(
+                    "tikv transaction commit() aborted: {:?}",
+                    err
+                ))),
+            },
         };
         info!("txn: {} commit()", txn_id);
         res
@@ -130,10 +167,16 @@ impl Client for ClientProxy {
         let txn = txns.get_mut(&txn_id).unwrap();
         let res = match txn.rollback().await {
             Ok(_) => Ok(Response::new(())),
-            Err(err) => Err(Status::unknown(format!(
-                "tikv transaction rollback failed: {:?}",
-                err
-            ))),
+            Err(err) => match err {
+                Error::UndeterminedError(_) | Error::Grpc(_) => Err(Status::unknown(format!(
+                    "tikv transaction rollback() failed: {:?}",
+                    err
+                ))),
+                _ => Err(Status::aborted(format!(
+                    "tikv transaction rollback() aborted: {:?}",
+                    err
+                ))),
+            },
         };
         info!("txn: {} rollback()", txn_id);
         res

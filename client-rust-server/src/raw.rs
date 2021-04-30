@@ -54,7 +54,7 @@ impl Client for ClientProxy {
         match self.client.put(message.key, message.value).await {
             Ok(()) => Ok(Response::new(())),
             Err(err) => match err {
-                Error::UndeterminedError(_) => {
+                Error::UndeterminedError(_) | Error::Grpc(_) => {
                     return Err(Status::unknown(format!(
                         "tikv client put() failed: {:?}",
                         err

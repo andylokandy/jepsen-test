@@ -40,13 +40,19 @@
             :checker (checker/compose
                       {:perf     (checker/perf)
                        :workload (:checker workload)})
-            :generator (->> (:generator workload)
-                            (gen/nemesis
-                             (cycle [(gen/sleep 5)
-                                     {:type :info, :f :start}
-                                     (gen/sleep 5)
-                                     {:type :info, :f :stop}]))
-                            (gen/time-limit (:time-limit opts)))}
+            :generator (gen/phases
+                        (->> (:generator workload)
+                             (gen/nemesis
+                              (cycle [(gen/sleep 5)
+                                      {:type :info, :f :start}
+                                      (gen/sleep 5)
+                                      {:type :info, :f :stop}]))
+                             (gen/time-limit (:time-limit opts)))
+                        (gen/log "Healing cluster")
+                        (gen/nemesis (gen/once {:type :info, :f :stop}))
+                        (gen/log "Waiting for recovery")
+                        (gen/sleep 10)
+                        (gen/clients (:final-generator workload)))}
            opts)))
 
 (def cli-opts

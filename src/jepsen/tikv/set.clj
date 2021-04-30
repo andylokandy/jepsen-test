@@ -5,7 +5,8 @@
              [generator :as gen]]
             [jepsen.tikv
              [client :as c]]
-            [jepsen.tikv.client.txn :as t]))
+            [jepsen.tikv.client.txn :as t]
+            [clojure.tools.logging :refer :all]))
 
 (defrecord Client [k conn]
   client/Client
@@ -13,11 +14,12 @@
     (assoc this :conn (c/open node {:type "txn"})))
 
   (setup! [this test]
-    (t/with-txn conn
-      (t/put! conn k "#{}")))
+    (t/with-txn-retries
+      (t/with-txn conn
+        (t/put! conn k "#{}"))))
 
   (invoke! [_ test op]
-    (try
+    (t/with-txn-aborts op
       (t/with-txn conn
         (case (:f op)
           :read (assoc op
@@ -29,9 +31,7 @@
                                       read-string
                                       (conj (:value op))
                                       pr-str))
-                   (assoc op :type :ok))))
-      (catch Exception e
-        (assoc op :type :fail :error :aborted :ex e))))
+                   (assoc op :type :ok))))))
 
   (teardown! [_ test])
 

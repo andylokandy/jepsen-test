@@ -1,7 +1,8 @@
 (ns jepsen.tikv.client.txn
   (:require [tikv.txn.Client.client :as txnkv]
             [protojure.grpc.client.providers.http2 :as grpc.http2]
-            [protojure.grpc.client.api :as grpc.api]))
+            [protojure.grpc.client.api :as grpc.api]
+            [slingshot.slingshot :refer [try+]]))
 
 (def ^:dynamic *txn-id* 0)
 
@@ -14,6 +15,32 @@
           (catch Exception e#
             (do (rollback! ~conn)
                 (throw e#))))))
+
+(defmacro capture-txn-abort
+  "Converts aborted transactions to an ::abort keyword"
+  [& body]
+  `(try+ ~@body
+         (catch [:status 5] e#
+           ::abort)
+         (catch [:status 10] e#
+           ::abort)))
+
+(defmacro with-txn-retries
+  "Retries body on rollbacks."
+  [& body]
+  `(loop []
+     (let [res# (capture-txn-abort ~@body)]
+       (if (= ::abort res#)
+         (recur)
+         res#))))
+
+(defmacro with-txn-aborts
+  "Aborts body on rollbacks."
+  [op & body]
+  `(let [res# (capture-txn-abort ~@body)]
+     (if (= ::abort res#)
+       (assoc ~op :type :fail :error :conflict)
+       res#)))
 
 (defn begin-txn
   [conn]
