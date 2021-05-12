@@ -11,12 +11,14 @@
              [db :as db]
              [register :as register]
              [set :as set]
+             [list-append :as list-append]
              [util :as tu]]))
 
 (def workloads
   "A map of workload names to functions that construct workloads, given opts."
   {:register       register/workload
-   :set            set/workload})
+   :set            set/workload
+   :list-append    list-append/workload})
 
 (def all-workloads
   "A collection of workloads we run by default."

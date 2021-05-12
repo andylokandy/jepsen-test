@@ -249,8 +249,9 @@
   (stop-pd! test node))
 
 (def client-types
-  {:register "raw"
-   :set      "txn"})
+  {:register    "raw"
+   :set         "txn"
+   :list-append "txn"})
 
 (defn tikv
   "A TiKV store."

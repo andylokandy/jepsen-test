@@ -23,7 +23,7 @@ make build-rust-client-server
 
 5. Run the test on nodes:
 ```bash
-lein run test --ssh-private-key ~/.ssh/id_rsa --version v4.0.0 --workload register
+xvfb-run lein run test --ssh-private-key ~/.ssh/id_rsa --version v4.0.0 --workload register --concurrency 10 --leave-db-running --time-limit 30
 ```
 
 ## License

@@ -1,5 +1,5 @@
 #!/bin/bash
-yum install -y java ncurses-devel gcc-c++ gnuplot bind-utils
+yum install -y java ncurses-devel gcc-c++ gnuplot bind-utils xvfb
 
 # install leiningen
 mkdir -p ~/bin
