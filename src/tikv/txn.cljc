@@ -9,7 +9,7 @@
             [protojure.protobuf.serdes.complex :as serdes.complex]
             [protojure.protobuf.serdes.utils :refer [tag-map]]
             [protojure.protobuf.serdes.stream :as serdes.stream]
-            [com.google.protobuf :as com.google.protobuf]
+            [tikv.error :as tikv.error]
             [clojure.set :as set]
             [clojure.spec.alpha :as s]))
 
@@ -19,27 +19,36 @@
 ;;----------------------------------------------------------------------------------
 ;;----------------------------------------------------------------------------------
 
-(declare cis->BeginTxnRequest)
-(declare ecis->BeginTxnRequest)
-(declare new-BeginTxnRequest)
 (declare cis->BeginTxnReply)
 (declare ecis->BeginTxnReply)
 (declare new-BeginTxnReply)
 (declare cis->GetRequest)
 (declare ecis->GetRequest)
 (declare new-GetRequest)
-(declare cis->GetReply)
-(declare ecis->GetReply)
-(declare new-GetReply)
-(declare cis->PutRequest)
-(declare ecis->PutRequest)
-(declare new-PutRequest)
-(declare cis->CommitRequest)
-(declare ecis->CommitRequest)
-(declare new-CommitRequest)
 (declare cis->RollbackRequest)
 (declare ecis->RollbackRequest)
 (declare new-RollbackRequest)
+(declare cis->CommitRequest)
+(declare ecis->CommitRequest)
+(declare new-CommitRequest)
+(declare cis->PutRequest)
+(declare ecis->PutRequest)
+(declare new-PutRequest)
+(declare cis->RollbackReply)
+(declare ecis->RollbackReply)
+(declare new-RollbackReply)
+(declare cis->GetReply)
+(declare ecis->GetReply)
+(declare new-GetReply)
+(declare cis->BeginTxnRequest)
+(declare ecis->BeginTxnRequest)
+(declare new-BeginTxnRequest)
+(declare cis->CommitReply)
+(declare ecis->CommitReply)
+(declare new-CommitReply)
+(declare cis->PutReply)
+(declare ecis->PutReply)
+(declare new-PutReply)
 
 ;;----------------------------------------------------------------------------------
 ;;----------------------------------------------------------------------------------
@@ -78,65 +87,19 @@
 ;;----------------------------------------------------------------------------------
 
 ;-----------------------------------------------------------------------------
-; BeginTxnRequest
-;-----------------------------------------------------------------------------
-(defrecord BeginTxnRequest-record [type]
-  pb/Writer
-  (serialize [this os]
-    (write-BeginTxnRequest-Type 1  {:optimize true} (:type this) os))
-  pb/TypeReflection
-  (gettype [this]
-    "tikv.txn.BeginTxnRequest"))
-
-(s/def :tikv.txn.BeginTxnRequest/type (s/or :keyword keyword? :int int?))
-(s/def ::BeginTxnRequest-spec (s/keys :opt-un [:tikv.txn.BeginTxnRequest/type ]))
-(def BeginTxnRequest-defaults {:type (BeginTxnRequest-Type-val2label 0) })
-
-(defn cis->BeginTxnRequest
-  "CodedInputStream to BeginTxnRequest"
-  [is]
-  (->> (tag-map BeginTxnRequest-defaults
-         (fn [tag index]
-             (case index
-               1 [:type (cis->BeginTxnRequest-Type is)]
-
-               [index (serdes.core/cis->undefined tag is)]))
-         is)
-        (map->BeginTxnRequest-record)))
-
-(defn ecis->BeginTxnRequest
-  "Embedded CodedInputStream to BeginTxnRequest"
-  [is]
-  (serdes.core/cis->embedded cis->BeginTxnRequest is))
-
-(defn new-BeginTxnRequest
-  "Creates a new instance from a map, similar to map->BeginTxnRequest except that
-  it properly accounts for nested messages, when applicable.
-  "
-  [init]
-  {:pre [(if (s/valid? ::BeginTxnRequest-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::BeginTxnRequest-spec init))))]}
-  (-> (merge BeginTxnRequest-defaults init)
-      (map->BeginTxnRequest-record)))
-
-(defn pb->BeginTxnRequest
-  "Protobuf to BeginTxnRequest"
-  [input]
-  (cis->BeginTxnRequest (serdes.stream/new-cis input)))
-
-(def ^:protojure.protobuf.any/record BeginTxnRequest-meta {:type "tikv.txn.BeginTxnRequest" :decoder pb->BeginTxnRequest})
-
-;-----------------------------------------------------------------------------
 ; BeginTxnReply
 ;-----------------------------------------------------------------------------
-(defrecord BeginTxnReply-record [txn-id]
+(defrecord BeginTxnReply-record [txn-id error]
   pb/Writer
   (serialize [this os]
-    (serdes.core/write-Fixed32 1  {:optimize true} (:txn-id this) os))
+    (serdes.core/write-Fixed32 1  {:optimize true} (:txn-id this) os)
+    (serdes.core/write-embedded 2 (:error this) os))
   pb/TypeReflection
   (gettype [this]
     "tikv.txn.BeginTxnReply"))
 
 (s/def :tikv.txn.BeginTxnReply/txn-id int?)
+
 (s/def ::BeginTxnReply-spec (s/keys :opt-un [:tikv.txn.BeginTxnReply/txn-id ]))
 (def BeginTxnReply-defaults {:txn-id 0 })
 
@@ -147,6 +110,7 @@
          (fn [tag index]
              (case index
                1 [:txn-id (serdes.core/cis->Fixed32 is)]
+               2 [:error (tikv.error/ecis->Error is)]
 
                [index (serdes.core/cis->undefined tag is)]))
          is)
@@ -164,6 +128,7 @@
   [init]
   {:pre [(if (s/valid? ::BeginTxnReply-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::BeginTxnReply-spec init))))]}
   (-> (merge BeginTxnReply-defaults init)
+      (cond-> (some? (get init :error)) (update :error tikv.error/new-Error))
       (map->BeginTxnReply-record)))
 
 (defn pb->BeginTxnReply
@@ -225,52 +190,100 @@
 (def ^:protojure.protobuf.any/record GetRequest-meta {:type "tikv.txn.GetRequest" :decoder pb->GetRequest})
 
 ;-----------------------------------------------------------------------------
-; GetReply
+; RollbackRequest
 ;-----------------------------------------------------------------------------
-(defrecord GetReply-record [value]
+(defrecord RollbackRequest-record [txn-id]
   pb/Writer
   (serialize [this os]
-    (serdes.core/write-String 1  {:optimize true} (:value this) os))
+    (serdes.core/write-Fixed32 1  {:optimize true} (:txn-id this) os))
   pb/TypeReflection
   (gettype [this]
-    "tikv.txn.GetReply"))
+    "tikv.txn.RollbackRequest"))
 
-(s/def :tikv.txn.GetReply/value string?)
-(s/def ::GetReply-spec (s/keys :opt-un [:tikv.txn.GetReply/value ]))
-(def GetReply-defaults {:value "" })
+(s/def :tikv.txn.RollbackRequest/txn-id int?)
+(s/def ::RollbackRequest-spec (s/keys :opt-un [:tikv.txn.RollbackRequest/txn-id ]))
+(def RollbackRequest-defaults {:txn-id 0 })
 
-(defn cis->GetReply
-  "CodedInputStream to GetReply"
+(defn cis->RollbackRequest
+  "CodedInputStream to RollbackRequest"
   [is]
-  (->> (tag-map GetReply-defaults
+  (->> (tag-map RollbackRequest-defaults
          (fn [tag index]
              (case index
-               1 [:value (serdes.core/cis->String is)]
+               1 [:txn-id (serdes.core/cis->Fixed32 is)]
 
                [index (serdes.core/cis->undefined tag is)]))
          is)
-        (map->GetReply-record)))
+        (map->RollbackRequest-record)))
 
-(defn ecis->GetReply
-  "Embedded CodedInputStream to GetReply"
+(defn ecis->RollbackRequest
+  "Embedded CodedInputStream to RollbackRequest"
   [is]
-  (serdes.core/cis->embedded cis->GetReply is))
+  (serdes.core/cis->embedded cis->RollbackRequest is))
 
-(defn new-GetReply
-  "Creates a new instance from a map, similar to map->GetReply except that
+(defn new-RollbackRequest
+  "Creates a new instance from a map, similar to map->RollbackRequest except that
   it properly accounts for nested messages, when applicable.
   "
   [init]
-  {:pre [(if (s/valid? ::GetReply-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::GetReply-spec init))))]}
-  (-> (merge GetReply-defaults init)
-      (map->GetReply-record)))
+  {:pre [(if (s/valid? ::RollbackRequest-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::RollbackRequest-spec init))))]}
+  (-> (merge RollbackRequest-defaults init)
+      (map->RollbackRequest-record)))
 
-(defn pb->GetReply
-  "Protobuf to GetReply"
+(defn pb->RollbackRequest
+  "Protobuf to RollbackRequest"
   [input]
-  (cis->GetReply (serdes.stream/new-cis input)))
+  (cis->RollbackRequest (serdes.stream/new-cis input)))
 
-(def ^:protojure.protobuf.any/record GetReply-meta {:type "tikv.txn.GetReply" :decoder pb->GetReply})
+(def ^:protojure.protobuf.any/record RollbackRequest-meta {:type "tikv.txn.RollbackRequest" :decoder pb->RollbackRequest})
+
+;-----------------------------------------------------------------------------
+; CommitRequest
+;-----------------------------------------------------------------------------
+(defrecord CommitRequest-record [txn-id]
+  pb/Writer
+  (serialize [this os]
+    (serdes.core/write-Fixed32 1  {:optimize true} (:txn-id this) os))
+  pb/TypeReflection
+  (gettype [this]
+    "tikv.txn.CommitRequest"))
+
+(s/def :tikv.txn.CommitRequest/txn-id int?)
+(s/def ::CommitRequest-spec (s/keys :opt-un [:tikv.txn.CommitRequest/txn-id ]))
+(def CommitRequest-defaults {:txn-id 0 })
+
+(defn cis->CommitRequest
+  "CodedInputStream to CommitRequest"
+  [is]
+  (->> (tag-map CommitRequest-defaults
+         (fn [tag index]
+             (case index
+               1 [:txn-id (serdes.core/cis->Fixed32 is)]
+
+               [index (serdes.core/cis->undefined tag is)]))
+         is)
+        (map->CommitRequest-record)))
+
+(defn ecis->CommitRequest
+  "Embedded CodedInputStream to CommitRequest"
+  [is]
+  (serdes.core/cis->embedded cis->CommitRequest is))
+
+(defn new-CommitRequest
+  "Creates a new instance from a map, similar to map->CommitRequest except that
+  it properly accounts for nested messages, when applicable.
+  "
+  [init]
+  {:pre [(if (s/valid? ::CommitRequest-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::CommitRequest-spec init))))]}
+  (-> (merge CommitRequest-defaults init)
+      (map->CommitRequest-record)))
+
+(defn pb->CommitRequest
+  "Protobuf to CommitRequest"
+  [input]
+  (cis->CommitRequest (serdes.stream/new-cis input)))
+
+(def ^:protojure.protobuf.any/record CommitRequest-meta {:type "tikv.txn.CommitRequest" :decoder pb->CommitRequest})
 
 ;-----------------------------------------------------------------------------
 ; PutRequest
@@ -327,98 +340,246 @@
 (def ^:protojure.protobuf.any/record PutRequest-meta {:type "tikv.txn.PutRequest" :decoder pb->PutRequest})
 
 ;-----------------------------------------------------------------------------
-; CommitRequest
+; RollbackReply
 ;-----------------------------------------------------------------------------
-(defrecord CommitRequest-record [txn-id]
+(defrecord RollbackReply-record [error]
   pb/Writer
   (serialize [this os]
-    (serdes.core/write-Fixed32 1  {:optimize true} (:txn-id this) os))
+    (serdes.core/write-embedded 1 (:error this) os))
   pb/TypeReflection
   (gettype [this]
-    "tikv.txn.CommitRequest"))
+    "tikv.txn.RollbackReply"))
 
-(s/def :tikv.txn.CommitRequest/txn-id int?)
-(s/def ::CommitRequest-spec (s/keys :opt-un [:tikv.txn.CommitRequest/txn-id ]))
-(def CommitRequest-defaults {:txn-id 0 })
+(s/def ::RollbackReply-spec (s/keys :opt-un []))
+(def RollbackReply-defaults {})
 
-(defn cis->CommitRequest
-  "CodedInputStream to CommitRequest"
+(defn cis->RollbackReply
+  "CodedInputStream to RollbackReply"
   [is]
-  (->> (tag-map CommitRequest-defaults
+  (->> (tag-map RollbackReply-defaults
          (fn [tag index]
              (case index
-               1 [:txn-id (serdes.core/cis->Fixed32 is)]
+               1 [:error (tikv.error/ecis->Error is)]
 
                [index (serdes.core/cis->undefined tag is)]))
          is)
-        (map->CommitRequest-record)))
+        (map->RollbackReply-record)))
 
-(defn ecis->CommitRequest
-  "Embedded CodedInputStream to CommitRequest"
+(defn ecis->RollbackReply
+  "Embedded CodedInputStream to RollbackReply"
   [is]
-  (serdes.core/cis->embedded cis->CommitRequest is))
+  (serdes.core/cis->embedded cis->RollbackReply is))
 
-(defn new-CommitRequest
-  "Creates a new instance from a map, similar to map->CommitRequest except that
+(defn new-RollbackReply
+  "Creates a new instance from a map, similar to map->RollbackReply except that
   it properly accounts for nested messages, when applicable.
   "
   [init]
-  {:pre [(if (s/valid? ::CommitRequest-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::CommitRequest-spec init))))]}
-  (-> (merge CommitRequest-defaults init)
-      (map->CommitRequest-record)))
+  {:pre [(if (s/valid? ::RollbackReply-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::RollbackReply-spec init))))]}
+  (-> (merge RollbackReply-defaults init)
+      (cond-> (some? (get init :error)) (update :error tikv.error/new-Error))
+      (map->RollbackReply-record)))
 
-(defn pb->CommitRequest
-  "Protobuf to CommitRequest"
+(defn pb->RollbackReply
+  "Protobuf to RollbackReply"
   [input]
-  (cis->CommitRequest (serdes.stream/new-cis input)))
+  (cis->RollbackReply (serdes.stream/new-cis input)))
 
-(def ^:protojure.protobuf.any/record CommitRequest-meta {:type "tikv.txn.CommitRequest" :decoder pb->CommitRequest})
+(def ^:protojure.protobuf.any/record RollbackReply-meta {:type "tikv.txn.RollbackReply" :decoder pb->RollbackReply})
 
 ;-----------------------------------------------------------------------------
-; RollbackRequest
+; GetReply
 ;-----------------------------------------------------------------------------
-(defrecord RollbackRequest-record [txn-id]
+(defrecord GetReply-record [value error]
   pb/Writer
   (serialize [this os]
-    (serdes.core/write-Fixed32 1  {:optimize true} (:txn-id this) os))
+    (serdes.core/write-String 1  {:optimize true} (:value this) os)
+    (serdes.core/write-embedded 2 (:error this) os))
   pb/TypeReflection
   (gettype [this]
-    "tikv.txn.RollbackRequest"))
+    "tikv.txn.GetReply"))
 
-(s/def :tikv.txn.RollbackRequest/txn-id int?)
-(s/def ::RollbackRequest-spec (s/keys :opt-un [:tikv.txn.RollbackRequest/txn-id ]))
-(def RollbackRequest-defaults {:txn-id 0 })
+(s/def :tikv.txn.GetReply/value string?)
 
-(defn cis->RollbackRequest
-  "CodedInputStream to RollbackRequest"
+(s/def ::GetReply-spec (s/keys :opt-un [:tikv.txn.GetReply/value ]))
+(def GetReply-defaults {:value "" })
+
+(defn cis->GetReply
+  "CodedInputStream to GetReply"
   [is]
-  (->> (tag-map RollbackRequest-defaults
+  (->> (tag-map GetReply-defaults
          (fn [tag index]
              (case index
-               1 [:txn-id (serdes.core/cis->Fixed32 is)]
+               1 [:value (serdes.core/cis->String is)]
+               2 [:error (tikv.error/ecis->Error is)]
 
                [index (serdes.core/cis->undefined tag is)]))
          is)
-        (map->RollbackRequest-record)))
+        (map->GetReply-record)))
 
-(defn ecis->RollbackRequest
-  "Embedded CodedInputStream to RollbackRequest"
+(defn ecis->GetReply
+  "Embedded CodedInputStream to GetReply"
   [is]
-  (serdes.core/cis->embedded cis->RollbackRequest is))
+  (serdes.core/cis->embedded cis->GetReply is))
 
-(defn new-RollbackRequest
-  "Creates a new instance from a map, similar to map->RollbackRequest except that
+(defn new-GetReply
+  "Creates a new instance from a map, similar to map->GetReply except that
   it properly accounts for nested messages, when applicable.
   "
   [init]
-  {:pre [(if (s/valid? ::RollbackRequest-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::RollbackRequest-spec init))))]}
-  (-> (merge RollbackRequest-defaults init)
-      (map->RollbackRequest-record)))
+  {:pre [(if (s/valid? ::GetReply-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::GetReply-spec init))))]}
+  (-> (merge GetReply-defaults init)
+      (cond-> (some? (get init :error)) (update :error tikv.error/new-Error))
+      (map->GetReply-record)))
 
-(defn pb->RollbackRequest
-  "Protobuf to RollbackRequest"
+(defn pb->GetReply
+  "Protobuf to GetReply"
   [input]
-  (cis->RollbackRequest (serdes.stream/new-cis input)))
+  (cis->GetReply (serdes.stream/new-cis input)))
 
-(def ^:protojure.protobuf.any/record RollbackRequest-meta {:type "tikv.txn.RollbackRequest" :decoder pb->RollbackRequest})
+(def ^:protojure.protobuf.any/record GetReply-meta {:type "tikv.txn.GetReply" :decoder pb->GetReply})
+
+;-----------------------------------------------------------------------------
+; BeginTxnRequest
+;-----------------------------------------------------------------------------
+(defrecord BeginTxnRequest-record [type]
+  pb/Writer
+  (serialize [this os]
+    (write-BeginTxnRequest-Type 1  {:optimize true} (:type this) os))
+  pb/TypeReflection
+  (gettype [this]
+    "tikv.txn.BeginTxnRequest"))
+
+(s/def :tikv.txn.BeginTxnRequest/type (s/or :keyword keyword? :int int?))
+(s/def ::BeginTxnRequest-spec (s/keys :opt-un [:tikv.txn.BeginTxnRequest/type ]))
+(def BeginTxnRequest-defaults {:type (BeginTxnRequest-Type-val2label 0) })
+
+(defn cis->BeginTxnRequest
+  "CodedInputStream to BeginTxnRequest"
+  [is]
+  (->> (tag-map BeginTxnRequest-defaults
+         (fn [tag index]
+             (case index
+               1 [:type (cis->BeginTxnRequest-Type is)]
+
+               [index (serdes.core/cis->undefined tag is)]))
+         is)
+        (map->BeginTxnRequest-record)))
+
+(defn ecis->BeginTxnRequest
+  "Embedded CodedInputStream to BeginTxnRequest"
+  [is]
+  (serdes.core/cis->embedded cis->BeginTxnRequest is))
+
+(defn new-BeginTxnRequest
+  "Creates a new instance from a map, similar to map->BeginTxnRequest except that
+  it properly accounts for nested messages, when applicable.
+  "
+  [init]
+  {:pre [(if (s/valid? ::BeginTxnRequest-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::BeginTxnRequest-spec init))))]}
+  (-> (merge BeginTxnRequest-defaults init)
+      (map->BeginTxnRequest-record)))
+
+(defn pb->BeginTxnRequest
+  "Protobuf to BeginTxnRequest"
+  [input]
+  (cis->BeginTxnRequest (serdes.stream/new-cis input)))
+
+(def ^:protojure.protobuf.any/record BeginTxnRequest-meta {:type "tikv.txn.BeginTxnRequest" :decoder pb->BeginTxnRequest})
+
+;-----------------------------------------------------------------------------
+; CommitReply
+;-----------------------------------------------------------------------------
+(defrecord CommitReply-record [error]
+  pb/Writer
+  (serialize [this os]
+    (serdes.core/write-embedded 1 (:error this) os))
+  pb/TypeReflection
+  (gettype [this]
+    "tikv.txn.CommitReply"))
+
+(s/def ::CommitReply-spec (s/keys :opt-un []))
+(def CommitReply-defaults {})
+
+(defn cis->CommitReply
+  "CodedInputStream to CommitReply"
+  [is]
+  (->> (tag-map CommitReply-defaults
+         (fn [tag index]
+             (case index
+               1 [:error (tikv.error/ecis->Error is)]
+
+               [index (serdes.core/cis->undefined tag is)]))
+         is)
+        (map->CommitReply-record)))
+
+(defn ecis->CommitReply
+  "Embedded CodedInputStream to CommitReply"
+  [is]
+  (serdes.core/cis->embedded cis->CommitReply is))
+
+(defn new-CommitReply
+  "Creates a new instance from a map, similar to map->CommitReply except that
+  it properly accounts for nested messages, when applicable.
+  "
+  [init]
+  {:pre [(if (s/valid? ::CommitReply-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::CommitReply-spec init))))]}
+  (-> (merge CommitReply-defaults init)
+      (cond-> (some? (get init :error)) (update :error tikv.error/new-Error))
+      (map->CommitReply-record)))
+
+(defn pb->CommitReply
+  "Protobuf to CommitReply"
+  [input]
+  (cis->CommitReply (serdes.stream/new-cis input)))
+
+(def ^:protojure.protobuf.any/record CommitReply-meta {:type "tikv.txn.CommitReply" :decoder pb->CommitReply})
+
+;-----------------------------------------------------------------------------
+; PutReply
+;-----------------------------------------------------------------------------
+(defrecord PutReply-record [error]
+  pb/Writer
+  (serialize [this os]
+    (serdes.core/write-embedded 1 (:error this) os))
+  pb/TypeReflection
+  (gettype [this]
+    "tikv.txn.PutReply"))
+
+(s/def ::PutReply-spec (s/keys :opt-un []))
+(def PutReply-defaults {})
+
+(defn cis->PutReply
+  "CodedInputStream to PutReply"
+  [is]
+  (->> (tag-map PutReply-defaults
+         (fn [tag index]
+             (case index
+               1 [:error (tikv.error/ecis->Error is)]
+
+               [index (serdes.core/cis->undefined tag is)]))
+         is)
+        (map->PutReply-record)))
+
+(defn ecis->PutReply
+  "Embedded CodedInputStream to PutReply"
+  [is]
+  (serdes.core/cis->embedded cis->PutReply is))
+
+(defn new-PutReply
+  "Creates a new instance from a map, similar to map->PutReply except that
+  it properly accounts for nested messages, when applicable.
+  "
+  [init]
+  {:pre [(if (s/valid? ::PutReply-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::PutReply-spec init))))]}
+  (-> (merge PutReply-defaults init)
+      (cond-> (some? (get init :error)) (update :error tikv.error/new-Error))
+      (map->PutReply-record)))
+
+(defn pb->PutReply
+  "Protobuf to PutReply"
+  [input]
+  (cis->PutReply (serdes.stream/new-cis input)))
+
+(def ^:protojure.protobuf.any/record PutReply-meta {:type "tikv.txn.PutReply" :decoder pb->PutReply})
 

@@ -5,7 +5,7 @@
 ;;;----------------------------------------------------------------------------------
 (ns tikv.txn.Client.client
   (:require [tikv.txn :refer :all]
-            [com.google.protobuf :as com.google.protobuf]
+            [tikv.error :as tikv.error]
             [clojure.core.async :as async]
             [protojure.grpc.client.utils :refer [send-unary-params invoke-unary]]
             [promesa.core :as p]
@@ -49,7 +49,7 @@
         desc {:service "tikv.txn.Client"
               :method  "Put"
               :input   {:f tikv.txn/new-PutRequest :ch input}
-              :output  {:f com.google.protobuf/pb->Empty :ch output}
+              :output  {:f tikv.txn/pb->PutReply :ch output}
               :metadata metadata}]
     (-> (send-unary-params input params)
         (p/then (fn [_] (invoke-unary client desc output)))))))
@@ -62,7 +62,7 @@
         desc {:service "tikv.txn.Client"
               :method  "Commit"
               :input   {:f tikv.txn/new-CommitRequest :ch input}
-              :output  {:f com.google.protobuf/pb->Empty :ch output}
+              :output  {:f tikv.txn/pb->CommitReply :ch output}
               :metadata metadata}]
     (-> (send-unary-params input params)
         (p/then (fn [_] (invoke-unary client desc output)))))))
@@ -75,7 +75,7 @@
         desc {:service "tikv.txn.Client"
               :method  "Rollback"
               :input   {:f tikv.txn/new-RollbackRequest :ch input}
-              :output  {:f com.google.protobuf/pb->Empty :ch output}
+              :output  {:f tikv.txn/pb->RollbackReply :ch output}
               :metadata metadata}]
     (-> (send-unary-params input params)
         (p/then (fn [_] (invoke-unary client desc output)))))))

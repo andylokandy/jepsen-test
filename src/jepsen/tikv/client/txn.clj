@@ -2,6 +2,7 @@
   (:require [tikv.txn.Client.client :as txnkv]
             [protojure.grpc.client.providers.http2 :as grpc.http2]
             [protojure.grpc.client.api :as grpc.api]
+            [jepsen.tikv.util :as tu]
             [slingshot.slingshot :refer [try+]]))
 
 (def ^:dynamic *txn-id* 0)
@@ -20,9 +21,9 @@
   "Converts aborted transactions to an ::abort keyword"
   [& body]
   `(try+ ~@body
-         (catch [:status 5] e#
+         (catch [:type :not-found] e#
            ::abort)
-         (catch [:status 10] e#
+         (catch [:type :aborted] e#
            ::abort)))
 
 (defmacro with-txn-retries
@@ -44,23 +45,35 @@
 
 (defn begin-txn
   [conn]
-  (:txn-id @(txnkv/BeginTxn (:conn conn) {:type 0}))) ; TODO(ziyi) hard-coded 0, which means using begin_optimistic
+  (let [rply @(txnkv/BeginTxn (:conn conn) {:type 0})
+        error  (:error rply)
+        txn-id (:txn-id rply)]
+    (tu/handle-error! txn-id error))) ; TODO(ziyi) hard-coded 0, which means using begin_optimistic
 
 (defn commit!
   [conn]
-  @(txnkv/Commit (:conn conn) {:txn-id *txn-id*}))
+  (let [rply @(txnkv/Commit (:conn conn) {:txn-id *txn-id*})
+        error (:error rply)]
+    (tu/handle-error! rply error)))
 
 (defn rollback!
   [conn]
-  @(txnkv/Rollback (:conn conn) {:txn-id *txn-id*}))
+  (let [rply @(txnkv/Rollback (:conn conn) {:txn-id *txn-id*})
+        error (:error rply)]
+    (tu/handle-error! rply error)))
 
 (defn get
   [conn key]
   (let [key (str key)]
-    (:value @(txnkv/Get (:conn conn) {:txn-id *txn-id* :key key}))))
+    (let [rply @(txnkv/Get (:conn conn) {:txn-id *txn-id* :key key})
+          error (:error rply)
+          value (:value rply)]
+      (tu/handle-error! value error))))
 
 (defn put!
   [conn key value]
   (let [key   (str key)
         value (str value)]
-    @(txnkv/Put (:conn conn) {:txn-id *txn-id* :key key :value value})))
+    (let [rply @(txnkv/Put (:conn conn) {:txn-id *txn-id* :key key :value value})
+          error (:error rply)]
+      (tu/handle-error! rply error))))

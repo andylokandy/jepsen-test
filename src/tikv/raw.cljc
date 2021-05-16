@@ -9,7 +9,7 @@
             [protojure.protobuf.serdes.complex :as serdes.complex]
             [protojure.protobuf.serdes.utils :refer [tag-map]]
             [protojure.protobuf.serdes.stream :as serdes.stream]
-            [com.google.protobuf :as com.google.protobuf]
+            [tikv.error :as tikv.error]
             [clojure.set :as set]
             [clojure.spec.alpha :as s]))
 
@@ -28,6 +28,9 @@
 (declare cis->PutRequest)
 (declare ecis->PutRequest)
 (declare new-PutRequest)
+(declare cis->PutReply)
+(declare ecis->PutReply)
+(declare new-PutReply)
 
 
 ;;----------------------------------------------------------------------------------
@@ -87,15 +90,17 @@
 ;-----------------------------------------------------------------------------
 ; GetReply
 ;-----------------------------------------------------------------------------
-(defrecord GetReply-record [value]
+(defrecord GetReply-record [value error]
   pb/Writer
   (serialize [this os]
-    (serdes.core/write-String 1  {:optimize true} (:value this) os))
+    (serdes.core/write-String 1  {:optimize true} (:value this) os)
+    (serdes.core/write-embedded 2 (:error this) os))
   pb/TypeReflection
   (gettype [this]
     "tikv.raw.GetReply"))
 
 (s/def :tikv.raw.GetReply/value string?)
+
 (s/def ::GetReply-spec (s/keys :opt-un [:tikv.raw.GetReply/value ]))
 (def GetReply-defaults {:value "" })
 
@@ -106,6 +111,7 @@
          (fn [tag index]
              (case index
                1 [:value (serdes.core/cis->String is)]
+               2 [:error (tikv.error/ecis->Error is)]
 
                [index (serdes.core/cis->undefined tag is)]))
          is)
@@ -123,6 +129,7 @@
   [init]
   {:pre [(if (s/valid? ::GetReply-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::GetReply-spec init))))]}
   (-> (merge GetReply-defaults init)
+      (cond-> (some? (get init :error)) (update :error tikv.error/new-Error))
       (map->GetReply-record)))
 
 (defn pb->GetReply
@@ -182,4 +189,52 @@
   (cis->PutRequest (serdes.stream/new-cis input)))
 
 (def ^:protojure.protobuf.any/record PutRequest-meta {:type "tikv.raw.PutRequest" :decoder pb->PutRequest})
+
+;-----------------------------------------------------------------------------
+; PutReply
+;-----------------------------------------------------------------------------
+(defrecord PutReply-record [error]
+  pb/Writer
+  (serialize [this os]
+    (serdes.core/write-embedded 1 (:error this) os))
+  pb/TypeReflection
+  (gettype [this]
+    "tikv.raw.PutReply"))
+
+(s/def ::PutReply-spec (s/keys :opt-un []))
+(def PutReply-defaults {})
+
+(defn cis->PutReply
+  "CodedInputStream to PutReply"
+  [is]
+  (->> (tag-map PutReply-defaults
+         (fn [tag index]
+             (case index
+               1 [:error (tikv.error/ecis->Error is)]
+
+               [index (serdes.core/cis->undefined tag is)]))
+         is)
+        (map->PutReply-record)))
+
+(defn ecis->PutReply
+  "Embedded CodedInputStream to PutReply"
+  [is]
+  (serdes.core/cis->embedded cis->PutReply is))
+
+(defn new-PutReply
+  "Creates a new instance from a map, similar to map->PutReply except that
+  it properly accounts for nested messages, when applicable.
+  "
+  [init]
+  {:pre [(if (s/valid? ::PutReply-spec init) true (throw (ex-info "Invalid input" (s/explain-data ::PutReply-spec init))))]}
+  (-> (merge PutReply-defaults init)
+      (cond-> (some? (get init :error)) (update :error tikv.error/new-Error))
+      (map->PutReply-record)))
+
+(defn pb->PutReply
+  "Protobuf to PutReply"
+  [input]
+  (cis->PutReply (serdes.stream/new-cis input)))
+
+(def ^:protojure.protobuf.any/record PutReply-meta {:type "tikv.raw.PutReply" :decoder pb->PutReply})
 

@@ -15,7 +15,7 @@
 (defn get
   [conn k]
   (try+ (t/get conn k)
-        (catch [:status 5] e ; gRPC not found error
+        (catch [:type :not-found] e ; gRPC not found error
           "[]")))
 
 (defn mop!
@@ -51,6 +51,6 @@
 (defn workload
   "See options for jepsen.tests.append/test"
   [opts]
-  (assoc (append/test {:consistency-models [:read-committed :snapshot-isolation]})
+  (assoc (append/test {:consistency-models [:read-committed :snapshot-isolation :repeatable-read :serializable]})
                                             ; unsatisfied levels: :repeatable-read :serializable
          :client (Client. nil)))

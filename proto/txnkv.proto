@@ -1,13 +1,14 @@
 syntax = "proto3";
-import "google/protobuf/empty.proto";
 package tikv.txn;
+
+import "error.proto";
 
 service Client {
     rpc BeginTxn (BeginTxnRequest) returns (BeginTxnReply);
     rpc Get (GetRequest) returns (GetReply);
-    rpc Put (PutRequest) returns (google.protobuf.Empty);
-    rpc Commit (CommitRequest) returns (google.protobuf.Empty);
-    rpc Rollback (RollbackRequest) returns (google.protobuf.Empty);
+    rpc Put (PutRequest) returns (PutReply);
+    rpc Commit (CommitRequest) returns (CommitReply);
+    rpc Rollback (RollbackRequest) returns (RollbackReply);
 }
 
 message BeginTxnRequest {
@@ -20,6 +21,7 @@ message BeginTxnRequest {
 
 message BeginTxnReply {
     fixed32 txn_id = 1;
+    tikv.error.Error error = 2;
 }
 
 message GetRequest {
@@ -29,6 +31,7 @@ message GetRequest {
 
 message GetReply {
     string value = 1;
+    tikv.error.Error error = 2;
 }
 
 message PutRequest {
@@ -37,10 +40,22 @@ message PutRequest {
     string value = 3;
 }
 
+message PutReply {
+    tikv.error.Error error = 1;
+}
+
 message CommitRequest {
     fixed32 txn_id = 1;
 }
 
+message CommitReply {
+    tikv.error.Error error = 1;
+}
+
 message RollbackRequest {
     fixed32 txn_id = 1;
+}
+
+message RollbackReply {
+    tikv.error.Error error = 1;
 }

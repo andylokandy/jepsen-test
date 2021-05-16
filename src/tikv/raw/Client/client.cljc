@@ -5,7 +5,7 @@
 ;;;----------------------------------------------------------------------------------
 (ns tikv.raw.Client.client
   (:require [tikv.raw :refer :all]
-            [com.google.protobuf :as com.google.protobuf]
+            [tikv.error :as tikv.error]
             [clojure.core.async :as async]
             [protojure.grpc.client.utils :refer [send-unary-params invoke-unary]]
             [promesa.core :as p]
@@ -36,7 +36,7 @@
         desc {:service "tikv.raw.Client"
               :method  "Put"
               :input   {:f tikv.raw/new-PutRequest :ch input}
-              :output  {:f com.google.protobuf/pb->Empty :ch output}
+              :output  {:f tikv.raw/pb->PutReply :ch output}
               :metadata metadata}]
     (-> (send-unary-params input params)
         (p/then (fn [_] (invoke-unary client desc output)))))))

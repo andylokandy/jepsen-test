@@ -30,9 +30,9 @@
                   (assoc op :type :ok :value (independent/tuple k value)))
          :write (do (c/put! conn k v)
                     (assoc op :type :ok)))
-       (catch [:status 5] e ; gRPC not found error
+       (catch [:type :not-found] e ; gRPC not found error
          (assoc op :type :fail :error :not-found))
-       (catch [:status 10] e ; gRPC aborted error
+       (catch [:type :aborted] e ; gRPC aborted error
          (assoc op :type :fail :error :aborted)))))
 
   (teardown! [this test])

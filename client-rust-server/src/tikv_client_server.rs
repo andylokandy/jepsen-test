@@ -5,3 +5,6 @@ pub mod raw {
 pub mod txn {
     tonic::include_proto!("tikv.txn"); // The string specified here must match the proto package name
 }
+pub mod error {
+    tonic::include_proto!("tikv.error"); // The string specified here must match the proto package name
+}
