@@ -67,29 +67,13 @@ impl Client for ClientProxy {
                 }
             },
         };
-        let txn_id = self.next_txn_id.load(Ordering::Relaxed);
+        let txn_id = self.next_txn_id.fetch_add(1, Ordering::SeqCst);
         self.txns.lock().await.insert(txn_id, txn);
-        let res = match self.next_txn_id.compare_exchange(
-            txn_id,
-            txn_id + 1,
-            Ordering::Relaxed,
-            Ordering::Relaxed,
-        ) {
-            Ok(_) => Ok(Response::new(BeginTxnReply {
-                txn_id,
-                error: None,
-            })),
-            Err(err) => Ok(Response::new(BeginTxnReply {
-                txn_id: 0,
-                error: Some(ClientServerError {
-                    aborted: format!("increment next_txn_id failed: {:?}", err),
-                    not_found: "".to_owned(),
-                    undetermined: "".to_owned(),
-                }),
-            })),
-        };
         info!("txn: {} type: {:?} begin_txn()", txn_id, req.r#type());
-        res
+        Ok(Response::new(BeginTxnReply {
+            txn_id,
+            error: None,
+        }))
     }
 
     async fn get(
