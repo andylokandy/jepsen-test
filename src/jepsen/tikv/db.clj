@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
             [popen]
+            [clojure.core.async :as async]
             [jepsen.tikv.util :as tu]
             [jepsen
              [core :as jepsen]
@@ -273,13 +274,16 @@
              (jepsen/synchronize test)
              (Thread/sleep 5000)
 
-             (popen/popen ["./rpc-server"
-                           "--node" node
-                           "--port" (str (+ 8000 (tu/num-suffix node)))
-                           "--type" (client-types (:workload test))]
-                          :redirect false
-                          :dir nil
-                          :env {})
+             (let [process (popen/popen ["./rpc-server"
+                                         "--node" node
+                                         "--port" (str (+ 8000 (tu/num-suffix node)))
+                                         "--type" (client-types (:workload test))]
+                                        :redirect false
+                                        :dir nil
+                                        :env {})
+                   output (line-seq (popen/stderr process))]
+               (async/go (doseq [line output]
+                           (info "rpc server log:" line))))
 
              (catch [:type :restart-loop-timed-out] e
                (throw+ {:type :jepsen.db/setup-failed})))))
