@@ -6,6 +6,7 @@
   :main jepsen.tikv
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [jepsen "0.2.3"]
+                 [clj-http "3.10.0"]
                  ;; -- PROTOC-GEN-CLOJURE --
                  [protojure "1.5.11"]
                  [protojure/google.protobuf "0.9.1"]

@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
             [popen]
+            [clj-http.client :as http]
             [clojure.core.async :as async]
             [jepsen.tikv.util :as tu]
             [jepsen
@@ -20,7 +21,9 @@
   3)
 
 (def tidb-dir       "/opt/tidb")
+(def tidb-bin-dir   "/opt/tidb/bin")
 (def pd-bin         "pd-server")
+(def pdctl-bin      "pd-ctl")
 (def kv-bin         "tikv-server")
 (def pd-config-file (str tidb-dir "/pd.conf"))
 (def pd-log-file    (str tidb-dir "/pd.log"))
@@ -110,6 +113,35 @@
   (configure-pd!)
   (configure-kv!))
 
+(defn pd-api-path
+  "Constructs an API path for the PD located on the given node."
+  [node & path-components]
+  (str "http://" node ":2379/pd/api/v1/" (str/join "/" path-components)))
+
+(defn pd-members
+  "All members of the cluster"
+  [node]
+  (-> (pd-api-path node "members")
+      (http/get {:as :json})
+      :body))
+
+(defn pd-leader
+  "Gets the current PD leader."
+  [node]
+  (-> (pd-api-path node "leader")
+      (http/get {:as :json})
+      :body))
+
+(defn pd-leader-node
+  "Returns the name of the node which is the current PD leader."
+  [test node]
+  (let [leader-name (:name (pd-leader node))]
+    (->> (tidb-map test)
+         (keep (fn [[node m]]
+                 (when (= leader-name (:pd m))
+                   node)))
+         first)))
+
 (defn pd-endpoints
   "Constructs an initial pd cluster string for a test, like
     \"foo:2379,bar:2379,...\""
@@ -118,6 +150,17 @@
        (map (fn [node] (str (name node) ":" client-port)))
        (str/join ",")))
 
+(defmacro await-http
+  "Loops body until HTTP call returns, retrying 500 and 503 errors."
+  [& body]
+  `(loop []
+     (let [res# (try+ ~@body
+                      (catch [:status 500] _# ::retry)
+                      (catch [:status 503] _# ::retry))]
+       (if (= ::retry res#)
+         (recur)
+         res#))))
+         
 (defn start-pd!
   "Starts the placement driver daemon"
   [test node]
