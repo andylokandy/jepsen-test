@@ -51,6 +51,6 @@
 (defn workload
   "See options for jepsen.tests.append/test"
   [opts]
-  (assoc (append/test {:consistency-models [:read-committed :snapshot-isolation :repeatable-read :serializable]})
+  (assoc (append/test {:consistency-models [:read-committed :snapshot-isolation]})
                                             ; unsatisfied levels: :repeatable-read :serializable
          :client (Client. nil)))

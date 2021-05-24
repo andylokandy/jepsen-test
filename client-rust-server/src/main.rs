@@ -14,7 +14,6 @@ use txn::ClientProxy as TxnClientProxy;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let pid = std::process::id();
     simple_logging::log_to_stderr(LevelFilter::Info);
 
     let matches = App::new("client-rust server")
