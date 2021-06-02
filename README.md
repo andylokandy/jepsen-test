@@ -19,9 +19,19 @@ make build-rust-client-server
 
 3. Set up virtual network using `scripts/setup-network.sh`.
 
-4. Set up nodes via LXC using `scripts/setup-nodes.sh`, `scripts/prepare-nodes.sh`.
+4. Generate RSA key pair.
+```bash
+ssh-keygen -t rsa
+```
 
-5. Run the test on nodes:
+5. Set up nodes via LXC using `scripts/setup-nodes.sh`, `scripts/prepare-nodes.sh`.
+
+6. Build rust-client-server
+```bash
+make build-rust-client-server
+```
+
+7. Run the test on nodes:
 ```bash
 xvfb-run lein run test --ssh-private-key ~/.ssh/id_rsa --version v4.0.0 --workload register --concurrency 10 --leave-db-running --time-limit 30
 ```
@@ -37,35 +47,37 @@ Each workload usually has more than one concurrent unit. In Jepsen, it is called
 Normally, the client is implemented natively in Clojure. But in our case, we implement it in a "client server" way.
 While setting up each test node, we also start a "client server" connected to the node. The "client server" exposes a RPC service for the TiKV client implemented in Clojure.
 
-  ┌───────────────────────────────────────────┐   ┌─────────────┐
-  │                                           │   │             │
-  │                               ┌────────┐  │   │   ┌──────┐  │
-  │    ┌─────────────────┐   ┌───►│ client ├──┼───┼──►│ node │  │
-  │    │     Jepsen      │   │    │ server │  │   │   └──────┘  │
-  │    │                 │   │    └────────┘  │   │             │
-  │    │   ┌─────────┐   │   │                │   │             │
-  │    │   │ Process ├───┼───┘    ┌────────┐  │   │   ┌──────┐  │
-  │    │   └─────────┘   │        │ client ├──┼───┼──►│ node │  │
-  │    │                 │        │ server │  │   │   └──────┘  │
-  │    │   ┌─────────┐   │        └────────┘  │   │             │
-  │    │   │ Process ├───┼───┐                │   │             │
-  │    │   └─────────┘   │   │    ┌────────┐  │   │   ┌──────┐  │
-  │    │       .         │   └───►│ client ├──┼───┼──►│ node │  │
-  │    │       .         │        │ server │  │   │   └──────┘  │
-  │    │       .         │        └────────┘  │   │             │
-  │    │       .         │                    │   │             │
-  │    │       .         │        ┌────────┐  │   │   ┌──────┐  │
-  │    │       .         │        │ client ├──┼───┼──►│ node │  │
-  │    │   ┌─────────┐   │        │ server │  │   │   └──────┘  │
-  │    │   │ Process ├───┼───┐    └────────┘  │   │             │
-  │    │   └─────────┘   │   │                │   │             │
-  │    │                 │   │    ┌────────┐  │   │   ┌──────┐  │
-  │    │                 │   └───►│ client ├──┼───┼──►│ node │  │
-  │    └─────────────────┘        │ server │  │   │   └──────┘  │
-  │                               └────────┘  │   │             │
-  │                                           │   │             │
-  │                    Host                   │   │     LXC     │
-  └───────────────────────────────────────────┘   └─────────────┘
+```
+┌───────────────────────────────────────────┐   ┌─────────────┐
+│                                           │   │             │
+│                               ┌────────┐  │   │   ┌──────┐  │
+│    ┌─────────────────┐   ┌───►│ client ├──┼───┼──►│ node │  │
+│    │     Jepsen      │   │    │ server │  │   │   └──────┘  │
+│    │                 │   │    └────────┘  │   │             │
+│    │   ┌─────────┐   │   │                │   │             │
+│    │   │ Process ├───┼───┘    ┌────────┐  │   │   ┌──────┐  │
+│    │   └─────────┘   │        │ client ├──┼───┼──►│ node │  │
+│    │                 │        │ server │  │   │   └──────┘  │
+│    │   ┌─────────┐   │        └────────┘  │   │             │
+│    │   │ Process ├───┼───┐                │   │             │
+│    │   └─────────┘   │   │    ┌────────┐  │   │   ┌──────┐  │
+│    │       .         │   └───►│ client ├──┼───┼──►│ node │  │
+│    │       .         │        │ server │  │   │   └──────┘  │
+│    │       .         │        └────────┘  │   │             │
+│    │       .         │                    │   │             │
+│    │       .         │        ┌────────┐  │   │   ┌──────┐  │
+│    │       .         │        │ client ├──┼───┼──►│ node │  │
+│    │   ┌─────────┐   │        │ server │  │   │   └──────┘  │
+│    │   │ Process ├───┼───┐    └────────┘  │   │             │
+│    │   └─────────┘   │   │                │   │             │
+│    │                 │   │    ┌────────┐  │   │   ┌──────┐  │
+│    │                 │   └───►│ client ├──┼───┼──►│ node │  │
+│    └─────────────────┘        │ server │  │   │   └──────┘  │
+│                               └────────┘  │   │             │
+│                                           │   │             │
+│                    Host                   │   │     LXC     │
+└───────────────────────────────────────────┘   └─────────────┘
+```
 
 ## Workload
 
